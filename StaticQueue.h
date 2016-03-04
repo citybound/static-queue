@@ -55,10 +55,231 @@ class StaticQueueBase
 {
 public:
     template <typename TDerived, typename TQueueType>
-    class IteratorBase;
+    class IteratorBase
+    {
+        friend class StaticQueueBase<T>;
+    public:
 
-    class ConstIterator;
-    class Iterator;
+        IteratorBase(const IteratorBase&) = default;
+
+        ~IteratorBase() = default;
+
+    protected:
+        typedef TDerived Derived;
+        typedef TQueueType QueueType;
+        typedef decltype(std::declval<QueueType>().lbegin()) ArrayIterator;
+        typedef typename std::iterator_traits<ArrayIterator>::iterator_category IteratorCategory;
+        typedef IteratorCategory iterator_category;
+        typedef typename std::iterator_traits<ArrayIterator>::value_type ValueType;
+        typedef ValueType value_type;
+        typedef typename std::iterator_traits<ArrayIterator>::difference_type DifferenceType;
+        typedef DifferenceType difference_type;
+        typedef typename std::iterator_traits<ArrayIterator>::pointer Pointer;
+        typedef Pointer pointer;
+        typedef
+        typename std::add_pointer<
+                typename std::add_const<
+                        typename std::remove_pointer<Pointer>::type
+                >::type
+        >::type ConstPointer;
+        typedef typename std::iterator_traits<ArrayIterator>::reference Reference;
+        typedef Reference reference;
+        typedef typename std::add_const<Reference>::type ConstReference;
+
+        IteratorBase(QueueType& queue, ArrayIterator iterator)
+                : queue_(queue),
+                  iterator_(iterator)
+        {
+        }
+
+        Derived& operator=(const IteratorBase& other)
+        {
+            assert(&queue_ == &other.queue_);
+            iterator_ = other.iterator_; // No need to check for self assignment
+            return static_cast<Derived&>(*this);
+        }
+
+        Derived& operator++()
+        {
+            ++iterator_;
+            return static_cast<Derived&>(*this);
+        }
+
+        Derived operator++(int)
+        {
+            IteratorBase copy(*this);
+            ++iterator_;
+            return std::move(*(static_cast<Derived*>(&copy)));
+        }
+
+        Derived& operator--()
+        {
+            --iterator_;
+            return static_cast<Derived&>(*this);
+        }
+
+        Derived operator--(int)
+        {
+            IteratorBase copy(*this);
+            --iterator_;
+            return std::move(*(static_cast<Derived*>(&copy)));
+        }
+
+        Derived& operator+=(DifferenceType value)
+        {
+            iterator_ += value;
+            return static_cast<Derived&>(*this);
+        }
+
+        Derived& operator-=(DifferenceType value)
+        {
+            iterator_ -= value;
+            return static_cast<Derived&>(*this);
+        }
+
+        Derived operator+(DifferenceType value) const
+        {
+            IteratorBase copy(*this);
+            copy += value;
+            return std::move(*(static_cast<Derived*>(&copy)));
+        }
+
+        Derived operator-(DifferenceType value) const
+        {
+            IteratorBase copy(*this);
+            copy -= value;
+            return std::move(*(static_cast<Derived*>(&copy)));
+        }
+
+        DifferenceType operator-(const IteratorBase& other) const
+        {
+            return iterator_ - other.iterator_;
+        }
+
+        bool operator==(const IteratorBase& other) const
+        {
+            return (iterator_ == other.iterator_);
+        }
+
+        bool operator!=(const IteratorBase& other) const
+        {
+            return (iterator_ != other.iterator_);
+        }
+
+        bool operator<(const IteratorBase& other) const
+        {
+            return iterator_ < other.iterator_;
+        }
+
+        bool operator<=(const IteratorBase& other) const
+        {
+            return iterator_ <= other.iterator_;
+        }
+
+        bool operator>(const IteratorBase& other) const
+        {
+            return iterator_ > other.iterator_;
+        }
+
+        bool operator>=(const IteratorBase& other) const
+        {
+            return iterator_ >= other.iterator_;
+        }
+
+        Reference operator*()
+        {
+            auto& constThisRef = static_cast<const IteratorBase&>(*this);
+            auto& constRef = *constThisRef;
+            return const_cast<Reference>(constRef);
+        }
+
+        ConstReference operator*() const
+        {
+            auto begCell = reinterpret_cast<ArrayIterator>(&queue_.data_[0]);
+            auto idx = iterator_ - begCell;
+            assert(0 <= idx);
+            return queue_[static_cast<std::size_t>(idx)];
+        }
+
+        Pointer operator->()
+        {
+            return &(*(*this));
+        }
+
+        ConstPointer operator->() const
+        {
+            return &(*(*this));
+        }
+
+        QueueType& getQueue() {
+            return queue_;
+        }
+
+        typename std::add_const<QueueType&>::type getQueue() const
+        {
+            return queue_;
+        }
+
+        ArrayIterator& getIterator() {
+            return iterator_;
+        }
+
+        typename std::add_const<ArrayIterator>::type& getIterator() const
+        {
+            return iterator_;
+        }
+
+    private:
+
+        QueueType& queue_; ///< Queue
+        ArrayIterator iterator_; ///< Low level array iterator
+    };
+
+    class ConstIterator :
+            public StaticQueueBase<T>::template
+            IteratorBase<typename StaticQueueBase<T>::ConstIterator, const StaticQueueBase<T> >
+    {
+        typedef typename StaticQueueBase<T>::template
+        IteratorBase<typename StaticQueueBase<T>::ConstIterator, const StaticQueueBase<T> > Base;
+
+    public:
+        typedef typename Base::QueueType QueueType;
+        typedef typename Base::ArrayIterator ArrayIterator;
+
+        ConstIterator(const ConstIterator&) = default;
+        ~ConstIterator() = default;
+
+        ConstIterator(QueueType& queue, ArrayIterator iterator)
+                : Base(queue, iterator)
+        {
+        }
+
+    };
+
+    class Iterator :
+            public StaticQueueBase<T>::template
+            IteratorBase<typename StaticQueueBase<T>::Iterator, StaticQueueBase<T> >
+    {
+        typedef typename StaticQueueBase<T>::template
+        IteratorBase<typename StaticQueueBase<T>::Iterator, StaticQueueBase<T> > Base;
+
+    public:
+        typedef typename Base::QueueType QueueType;
+        typedef typename Base::ArrayIterator ArrayIterator;
+
+        Iterator(const Iterator&) = default;
+        ~Iterator() = default;
+
+        Iterator(QueueType& queue, ArrayIterator iterator)
+                : Base(queue, iterator)
+        {
+        }
+
+        operator ConstIterator() const
+        {
+            return ConstIterator(Base::getQueue(), Base::getIterator());
+        }
+    };
 
 protected:
     typedef T ValueType;
@@ -983,237 +1204,6 @@ private:
     std::size_t count_;
 };
 
-template <typename T>
-template <typename TDerived, typename TQueueType>
-class StaticQueueBase<T>::IteratorBase
-{
-    friend class StaticQueueBase<T>;
-public:
-
-    IteratorBase(const IteratorBase&) = default;
-
-    ~IteratorBase() = default;
-
-protected:
-    typedef TDerived Derived;
-    typedef TQueueType QueueType;
-    typedef decltype(std::declval<QueueType>().lbegin()) ArrayIterator;
-    typedef typename std::iterator_traits<ArrayIterator>::iterator_category IteratorCategory;
-    typedef IteratorCategory iterator_category;
-    typedef typename std::iterator_traits<ArrayIterator>::value_type ValueType;
-    typedef ValueType value_type;
-    typedef typename std::iterator_traits<ArrayIterator>::difference_type DifferenceType;
-    typedef DifferenceType difference_type;
-    typedef typename std::iterator_traits<ArrayIterator>::pointer Pointer;
-    typedef Pointer pointer;
-    typedef
-        typename std::add_pointer<
-            typename std::add_const<
-                typename std::remove_pointer<Pointer>::type
-            >::type
-        >::type ConstPointer;
-    typedef typename std::iterator_traits<ArrayIterator>::reference Reference;
-    typedef Reference reference;
-    typedef typename std::add_const<Reference>::type ConstReference;
-
-    IteratorBase(QueueType& queue, ArrayIterator iterator)
-        : queue_(queue),
-          iterator_(iterator)
-    {
-    }
-
-    Derived& operator=(const IteratorBase& other)
-    {
-        assert(&queue_ == &other.queue_);
-        iterator_ = other.iterator_; // No need to check for self assignment
-        return static_cast<Derived&>(*this);
-    }
-
-    Derived& operator++()
-    {
-        ++iterator_;
-        return static_cast<Derived&>(*this);
-    }
-
-    Derived operator++(int)
-    {
-        IteratorBase copy(*this);
-        ++iterator_;
-        return std::move(*(static_cast<Derived*>(&copy)));
-    }
-
-    Derived& operator--()
-    {
-        --iterator_;
-        return static_cast<Derived&>(*this);
-    }
-
-    Derived operator--(int)
-    {
-        IteratorBase copy(*this);
-        --iterator_;
-        return std::move(*(static_cast<Derived*>(&copy)));
-    }
-
-    Derived& operator+=(DifferenceType value)
-    {
-        iterator_ += value;
-        return static_cast<Derived&>(*this);
-    }
-
-    Derived& operator-=(DifferenceType value)
-    {
-        iterator_ -= value;
-        return static_cast<Derived&>(*this);
-    }
-
-    Derived operator+(DifferenceType value) const
-    {
-        IteratorBase copy(*this);
-        copy += value;
-        return std::move(*(static_cast<Derived*>(&copy)));
-    }
-
-    Derived operator-(DifferenceType value) const
-    {
-        IteratorBase copy(*this);
-        copy -= value;
-        return std::move(*(static_cast<Derived*>(&copy)));
-    }
-
-    DifferenceType operator-(const IteratorBase& other) const
-    {
-        return iterator_ - other.iterator_;
-    }
-
-    bool operator==(const IteratorBase& other) const
-    {
-        return (iterator_ == other.iterator_);
-    }
-
-    bool operator!=(const IteratorBase& other) const
-    {
-        return (iterator_ != other.iterator_);
-    }
-
-    bool operator<(const IteratorBase& other) const
-    {
-        return iterator_ < other.iterator_;
-    }
-
-    bool operator<=(const IteratorBase& other) const
-    {
-        return iterator_ <= other.iterator_;
-    }
-
-    bool operator>(const IteratorBase& other) const
-    {
-        return iterator_ > other.iterator_;
-    }
-
-    bool operator>=(const IteratorBase& other) const
-    {
-        return iterator_ >= other.iterator_;
-    }
-
-    Reference operator*()
-    {
-        auto& constThisRef = static_cast<const IteratorBase&>(*this);
-        auto& constRef = *constThisRef;
-        return const_cast<Reference>(constRef);
-    }
-
-    ConstReference operator*() const
-    {
-        auto begCell = reinterpret_cast<ArrayIterator>(&queue_.data_[0]);
-        auto idx = iterator_ - begCell;
-        assert(0 <= idx);
-        return queue_[static_cast<std::size_t>(idx)];
-    }
-
-    Pointer operator->()
-    {
-        return &(*(*this));
-    }
-
-    ConstPointer operator->() const
-    {
-        return &(*(*this));
-    }
-
-    QueueType& getQueue() {
-        return queue_;
-    }
-
-    typename std::add_const<QueueType&>::type getQueue() const
-    {
-        return queue_;
-    }
-
-    ArrayIterator& getIterator() {
-        return iterator_;
-    }
-
-    typename std::add_const<ArrayIterator>::type& getIterator() const
-    {
-        return iterator_;
-    }
-
-private:
-
-    QueueType& queue_; ///< Queue
-    ArrayIterator iterator_; ///< Low level array iterator
-};
-
-template <typename T>
-class StaticQueueBase<T>::ConstIterator :
-            public StaticQueueBase<T>::template
-                IteratorBase<typename StaticQueueBase<T>::ConstIterator, const StaticQueueBase<T> >
-{
-    typedef typename StaticQueueBase<T>::template
-        IteratorBase<typename StaticQueueBase<T>::ConstIterator, const StaticQueueBase<T> > Base;
-
-public:
-    typedef typename Base::QueueType QueueType;
-    typedef typename Base::ArrayIterator ArrayIterator;
-
-    ConstIterator(const ConstIterator&) = default;
-    ~ConstIterator() = default;
-
-    ConstIterator(QueueType& queue, ArrayIterator iterator)
-        : Base(queue, iterator)
-    {
-    }
-
-};
-
-template <typename T>
-class StaticQueueBase<T>::Iterator :
-            public StaticQueueBase<T>::template
-                IteratorBase<typename StaticQueueBase<T>::Iterator, StaticQueueBase<T> >
-{
-    typedef typename StaticQueueBase<T>::template
-        IteratorBase<typename StaticQueueBase<T>::Iterator, StaticQueueBase<T> > Base;
-
-public:
-    typedef typename Base::QueueType QueueType;
-    typedef typename Base::ArrayIterator ArrayIterator;
-
-    Iterator(const Iterator&) = default;
-    ~Iterator() = default;
-
-    Iterator(QueueType& queue, ArrayIterator iterator)
-        : Base(queue, iterator)
-    {
-    }
-
-    operator ConstIterator() const
-    {
-        return ConstIterator(Base::getQueue(), Base::getIterator());
-    }
-};
-
-
 template <typename TWrapperElemType, typename TQueueElemType>
 class CastWrapperQueueBase : public StaticQueueBase<TQueueElemType>
 {
@@ -1235,8 +1225,209 @@ class CastWrapperQueueBase : public StaticQueueBase<TQueueElemType>
 
 public:
 
-    class ConstIterator;
-    class Iterator;
+    class ConstIterator :
+            public StaticQueueBase<TQueueElemType>::ConstIterator
+    {
+        typedef typename StaticQueueBase<TQueueElemType>::ConstIterator Base;
+    public:
+        ConstIterator(const ConstIterator&) = default;
+        ConstIterator& operator=(const ConstIterator&) = default;
+        ~ConstIterator() = default;
+
+    protected:
+        typedef const StaticQueueBase<TWrapperElemType> ExpectedQueueType;
+        typedef const StaticQueueBase<TQueueElemType> ActualQueueType;
+        typedef TWrapperElemType ValueType;
+        typedef const ValueType& Reference;
+        typedef const ValueType& ConstReference;
+        typedef const ValueType* Pointer;
+        typedef const ValueType* ConstPointer;
+        typedef typename Base::DifferenceType DifferenceType;
+
+        ConstIterator(ExpectedQueueType& queue, Pointer iterator)
+                : Base(reinterpret_cast<ActualQueueType&>(queue), iterator)
+        {
+        }
+
+        ConstIterator& operator++()
+        {
+            Base::operator++();
+            return *this;
+        }
+
+        ConstIterator operator++(int dummy)
+        {
+            auto tmp = Base::operator++(dummy);
+            return *(static_cast<ConstIterator*>(&tmp));
+        }
+
+        ConstIterator& operator--()
+        {
+            Base::operator--();
+            return *this;
+        }
+
+        ConstIterator operator--(int dummy)
+        {
+            auto tmp = Base::operator--(dummy);
+            return *(static_cast<ConstIterator*>(&tmp));
+        }
+
+        ConstIterator& operator+=(DifferenceType value)
+        {
+            Base::operator+=(value);
+            return *this;
+        }
+
+        ConstIterator& operator-=(DifferenceType value)
+        {
+            Base::operator-=(value);
+            return *this;
+        }
+
+        ConstIterator operator+(DifferenceType value) const
+        {
+            auto tmp = Base::operator+(value);
+            return *(static_cast<ConstIterator*>(&tmp));
+        }
+
+        ConstIterator operator-(DifferenceType value) const
+        {
+            auto tmp = Base::operator-(value);
+            return *(static_cast<ConstIterator*>(&tmp));
+        }
+
+        DifferenceType operator-(const ConstIterator& other) const
+        {
+            return Base::operator-(other);
+        }
+
+        Reference operator*()
+        {
+            auto& ref = Base::operator*();
+            return reinterpret_cast<Reference>(ref);
+        }
+
+        ConstReference operator*() const
+        {
+            auto& ref = Base::operator*();
+            return reinterpret_cast<ConstReference>(ref);
+        }
+
+        Pointer operator->()
+        {
+            auto* ptr = Base::operator->();
+            return reinterpret_cast<Pointer>(ptr);
+        }
+
+        ConstPointer operator->() const
+        {
+            auto* ptr = Base::operator->();
+            return reinterpret_cast<ConstPointer>(ptr);
+        }
+    };
+
+    class Iterator :
+            public StaticQueueBase<TQueueElemType>::Iterator
+    {
+        typedef typename StaticQueueBase<TQueueElemType>::Iterator Base;
+    public:
+        Iterator(const Iterator&) = default;
+        Iterator& operator=(const Iterator&) = default;
+        ~Iterator() = default;
+
+    protected:
+        typedef const StaticQueueBase<TWrapperElemType> ExpectedQueueType;
+        typedef const StaticQueueBase<TQueueElemType> ActualQueueType;
+        typedef TWrapperElemType ValueType;
+        typedef ValueType& Reference;
+        typedef const ValueType& ConstReference;
+        typedef ValueType* Pointer;
+        typedef const ValueType* ConstPointer;
+        typedef typename Base::DifferenceType DifferenceType;
+
+        Iterator(ExpectedQueueType& queue, Pointer iterator)
+                : Base(reinterpret_cast<ActualQueueType&>(queue), iterator)
+        {
+        }
+
+        Iterator& operator++()
+        {
+            Base::operator++();
+            return *this;
+        }
+
+        Iterator operator++(int dummy)
+        {
+            auto tmp = Base::operator++(dummy);
+            return *(static_cast<Iterator*>(&tmp));
+        }
+
+        Iterator& operator--()
+        {
+            Base::operator--();
+            return *this;
+        }
+
+        Iterator operator--(int dummy)
+        {
+            auto tmp = Base::operator--(dummy);
+            return *(static_cast<Iterator*>(&tmp));
+        }
+
+        Iterator& operator+=(DifferenceType value)
+        {
+            Base::operator+=(value);
+            return *this;
+        }
+
+        Iterator& operator-=(DifferenceType value)
+        {
+            Base::operator-=(value);
+            return *this;
+        }
+
+        Iterator operator+(DifferenceType value) const
+        {
+            auto tmp = Base::operator+(value);
+            return *(static_cast<Iterator*>(&tmp));
+        }
+
+        Iterator operator-(DifferenceType value) const
+        {
+            auto tmp = Base::operator-(value);
+            return *(static_cast<Iterator*>(&tmp));
+        }
+
+        DifferenceType operator-(const Iterator& other) const
+        {
+            return Base::operator-(other);
+        }
+
+        Reference operator*()
+        {
+            auto& ref = Base::operator*();
+            return reinterpret_cast<Reference>(ref);
+        }
+
+        ConstReference operator*() const
+        {
+            auto& ref = Base::operator*();
+            return reinterpret_cast<ConstReference>(ref);
+        }
+
+        Pointer operator->()
+        {
+            auto* ptr = Base::operator->();
+            return reinterpret_cast<Pointer>(ptr);
+        }
+
+        ConstPointer operator->() const
+        {
+            auto* ptr = Base::operator->();
+            return reinterpret_cast<ConstPointer>(ptr);
+        }
+    };
 
 protected:
     typedef WrapperElemType ValueType;
@@ -1524,212 +1715,6 @@ protected:
     }
 };
 
-template <typename TWrapperElemType, typename TQueueElemType>
-class CastWrapperQueueBase<TWrapperElemType, TQueueElemType>::ConstIterator :
-                            public StaticQueueBase<TQueueElemType>::ConstIterator
-{
-    typedef typename StaticQueueBase<TQueueElemType>::ConstIterator Base;
-public:
-    ConstIterator(const ConstIterator&) = default;
-    ConstIterator& operator=(const ConstIterator&) = default;
-    ~ConstIterator() = default;
-
-protected:
-    typedef const StaticQueueBase<TWrapperElemType> ExpectedQueueType;
-    typedef const StaticQueueBase<TQueueElemType> ActualQueueType;
-    typedef TWrapperElemType ValueType;
-    typedef const ValueType& Reference;
-    typedef const ValueType& ConstReference;
-    typedef const ValueType* Pointer;
-    typedef const ValueType* ConstPointer;
-    typedef typename Base::DifferenceType DifferenceType;
-
-    ConstIterator(ExpectedQueueType& queue, Pointer iterator)
-        : Base(reinterpret_cast<ActualQueueType&>(queue), iterator)
-    {
-    }
-
-    ConstIterator& operator++()
-    {
-        Base::operator++();
-        return *this;
-    }
-
-    ConstIterator operator++(int dummy)
-    {
-        auto tmp = Base::operator++(dummy);
-        return *(static_cast<ConstIterator*>(&tmp));
-    }
-
-    ConstIterator& operator--()
-    {
-        Base::operator--();
-        return *this;
-    }
-
-    ConstIterator operator--(int dummy)
-    {
-        auto tmp = Base::operator--(dummy);
-        return *(static_cast<ConstIterator*>(&tmp));
-    }
-
-    ConstIterator& operator+=(DifferenceType value)
-    {
-        Base::operator+=(value);
-        return *this;
-    }
-
-    ConstIterator& operator-=(DifferenceType value)
-    {
-        Base::operator-=(value);
-        return *this;
-    }
-
-    ConstIterator operator+(DifferenceType value) const
-    {
-        auto tmp = Base::operator+(value);
-        return *(static_cast<ConstIterator*>(&tmp));
-    }
-
-    ConstIterator operator-(DifferenceType value) const
-    {
-        auto tmp = Base::operator-(value);
-        return *(static_cast<ConstIterator*>(&tmp));
-    }
-
-    DifferenceType operator-(const ConstIterator& other) const
-    {
-        return Base::operator-(other);
-    }
-
-    Reference operator*()
-    {
-        auto& ref = Base::operator*();
-        return reinterpret_cast<Reference>(ref);
-    }
-
-    ConstReference operator*() const
-    {
-        auto& ref = Base::operator*();
-        return reinterpret_cast<ConstReference>(ref);
-    }
-
-    Pointer operator->()
-    {
-        auto* ptr = Base::operator->();
-        return reinterpret_cast<Pointer>(ptr);
-    }
-
-    ConstPointer operator->() const
-    {
-        auto* ptr = Base::operator->();
-        return reinterpret_cast<ConstPointer>(ptr);
-    }
-};
-
-template <typename TWrapperElemType, typename TQueueElemType>
-class CastWrapperQueueBase<TWrapperElemType, TQueueElemType>::Iterator :
-                            public StaticQueueBase<TQueueElemType>::Iterator
-{
-    typedef typename StaticQueueBase<TQueueElemType>::Iterator Base;
-public:
-    Iterator(const Iterator&) = default;
-    Iterator& operator=(const Iterator&) = default;
-    ~Iterator() = default;
-
-protected:
-    typedef const StaticQueueBase<TWrapperElemType> ExpectedQueueType;
-    typedef const StaticQueueBase<TQueueElemType> ActualQueueType;
-    typedef TWrapperElemType ValueType;
-    typedef ValueType& Reference;
-    typedef const ValueType& ConstReference;
-    typedef ValueType* Pointer;
-    typedef const ValueType* ConstPointer;
-    typedef typename Base::DifferenceType DifferenceType;
-
-    Iterator(ExpectedQueueType& queue, Pointer iterator)
-        : Base(reinterpret_cast<ActualQueueType&>(queue), iterator)
-    {
-    }
-
-    Iterator& operator++()
-    {
-        Base::operator++();
-        return *this;
-    }
-
-    Iterator operator++(int dummy)
-    {
-        auto tmp = Base::operator++(dummy);
-        return *(static_cast<Iterator*>(&tmp));
-    }
-
-    Iterator& operator--()
-    {
-        Base::operator--();
-        return *this;
-    }
-
-    Iterator operator--(int dummy)
-    {
-        auto tmp = Base::operator--(dummy);
-        return *(static_cast<Iterator*>(&tmp));
-    }
-
-    Iterator& operator+=(DifferenceType value)
-    {
-        Base::operator+=(value);
-        return *this;
-    }
-
-    Iterator& operator-=(DifferenceType value)
-    {
-        Base::operator-=(value);
-        return *this;
-    }
-
-    Iterator operator+(DifferenceType value) const
-    {
-        auto tmp = Base::operator+(value);
-        return *(static_cast<Iterator*>(&tmp));
-    }
-
-    Iterator operator-(DifferenceType value) const
-    {
-        auto tmp = Base::operator-(value);
-        return *(static_cast<Iterator*>(&tmp));
-    }
-
-    DifferenceType operator-(const Iterator& other) const
-    {
-        return Base::operator-(other);
-    }
-
-    Reference operator*()
-    {
-        auto& ref = Base::operator*();
-        return reinterpret_cast<Reference>(ref);
-    }
-
-    ConstReference operator*() const
-    {
-        auto& ref = Base::operator*();
-        return reinterpret_cast<ConstReference>(ref);
-    }
-
-    Pointer operator->()
-    {
-        auto* ptr = Base::operator->();
-        return reinterpret_cast<Pointer>(ptr);
-    }
-
-    ConstPointer operator->() const
-    {
-        auto* ptr = Base::operator->();
-        return reinterpret_cast<ConstPointer>(ptr);
-    }
-};
-
 template <typename T>
 class StaticQueueBaseOptimised : public StaticQueueBase<T>
 {
@@ -1918,14 +1903,428 @@ public:
     /// @brief Const version of IteratorRange
     typedef typename Base::ConstLinearisedIteratorRange ConstLinearisedIteratorRange;
 
-    /// @brief Const iterator class
-    class ConstIterator;
+    /// @brief Const iterator for the elements of StaticQueue.
+    /// @details May be used to iterate over all the elements without worrying
+    ///          about linearisation of the queue.
+    /// @headerfile embxx/container/StaticQueue.h
+    class ConstIterator : public StaticQueue<T, TSize>::Base::ConstIterator
+    {
+        typedef typename StaticQueue<T, TSize>::Base::ConstIterator Base;
+    public:
+
+        /// @brief Type of iterator category
+        typedef typename Base::IteratorCategory IteratorCategory;
+
+        /// @brief Same as IteratorCategory
+        typedef IteratorCategory iterator_category;
+
+        /// @brief Type of the value referenced by the iterator
+        typedef typename Base::ValueType ValueType;
+
+        /// @brief Same as ValueType
+        typedef ValueType value_type;
+
+        /// @brief Type of the difference between two iterators
+        typedef typename Base::DifferenceType DifferenceType;
+
+        /// @brief Same as DifferenceType
+        typedef DifferenceType difference_type;
+
+        /// @brief Type of the pointer to the value referenced by the iterator
+        typedef typename Base::Pointer Pointer;
+
+        /// @brief Same as Pointer
+        typedef Pointer pointer;
+
+        /// @brief Const pointer type
+        typedef typename Base::ConstPointer ConstPointer;
+
+        /// @brief Type of the reference to the value referenced by the iterator
+        typedef typename Base::Reference Reference;
+
+        /// @brief Same as Reference
+        typedef Reference reference;
+
+        /// @brief Const reference type
+        typedef typename Base::ConstReference ConstReference;
+
+        /// @brief Queue type
+        typedef StaticQueue<T, TSize> QueueType;
+
+        /// @brief Const linearised iterator
+        typedef typename QueueType::ConstLinearisedIterator ConstLinearisedIterator;
+
+        /// @brief Constructor
+        /// @param queue Reference to queue
+        /// @param iterator Low level array iterator
+        ConstIterator(const QueueType& queue, ConstLinearisedIterator iterator)
+                : Base(queue, iterator)
+        {
+        }
+
+        /// @brief Copy constructor is default.
+        ConstIterator(const ConstIterator&) = default;
+
+        /// @brief Copy assignment operator.
+        /// @param other Other iterator
+        /// @pre Other iterator must be iterator of the same queue.
+        ConstIterator& operator=(const ConstIterator& other)
+        {
+            return static_cast<ConstIterator&>(Base::operator=(other));
+        }
+
+        /// @brief Pre increment operator.
+        ConstIterator& operator++()
+        {
+            return static_cast<ConstIterator&>(Base::operator++());
+        }
+
+        /// @brief Post increment operator.
+        ConstIterator operator++(int dummyParam)
+        {
+            auto tmp = Base::operator++(dummyParam);
+            return *(static_cast<ConstIterator*>(&tmp));
+        }
+
+        /// @brief Pre decrement operator.
+        ConstIterator& operator--()
+        {
+            return static_cast<ConstIterator&>(Base::operator--());
+        }
+
+        /// @brief Post-decrement operator.
+        ConstIterator operator--(int dummyParam)
+        {
+            auto tmp = Base::operator--(dummyParam);
+            return *(static_cast<ConstIterator*>(&tmp));
+        }
+
+        /// @brief Operator of adding constant value to the iterator
+        /// @param value Value to be added
+        ConstIterator& operator+=(DifferenceType value)
+        {
+            return static_cast<ConstIterator&>(Base::operator+=(value));
+        }
+
+        /// @brief Operator of substructing constant value from the iterator
+        /// @param value Value to be substructed
+        ConstIterator& operator-=(DifferenceType value)
+        {
+            return static_cast<ConstIterator&>(Base::operator-=(value));
+        }
+
+        /// @brief Operator +
+        /// @details Creates new iterator object by adding constant to
+        ///          current operator without changing it.
+        /// @param value Value to be added
+        ConstIterator operator+(DifferenceType value) const
+        {
+            auto tmp = Base::operator+(value);
+            return *(static_cast<ConstIterator*>(&tmp));
+        }
+
+        /// @brief Operator -
+        /// @details Creates new iterator object by substructing constant from
+        ///          current operator without changing it.
+        /// @param value Value to be substructed
+        ConstIterator operator-(DifferenceType value) const
+        {
+            auto tmp = Base::operator-(value);
+            return *(static_cast<ConstIterator*>(&tmp));
+        }
+
+        /// @brief Computes the distance between two iterators
+        /// @param other Other iterator
+        /// @pre other iterator must be of the same queue.
+        DifferenceType operator-(const ConstIterator& other) const
+        {
+            return Base::operator-(other);
+        }
+
+        /// @brief Iterator comparison operator
+        /// @param other Other iterator
+        bool operator==(const ConstIterator& other) const
+        {
+            return Base::operator==(other);
+        }
+
+        /// @brief Iterator comparison operator
+        /// @param other Other iterator
+        bool operator!=(const ConstIterator& other) const
+        {
+            return Base::operator!=(other);
+        }
+
+        /// @brief Iterator comparison operator
+        /// @param other Other iterator
+        bool operator<(const ConstIterator& other) const
+        {
+            return Base::operator<(other);
+        }
+
+        /// @brief Iterator comparison operator
+        /// @param other Other iterator
+        bool operator<=(const ConstIterator& other) const
+        {
+            return Base::operator<=(other);
+        }
+
+        /// @brief Iterator comparison operator
+        /// @param other Other iterator
+        bool operator>(const ConstIterator& other) const
+        {
+            return Base::operator>(other);
+        }
+
+        /// @brief Iterator comparison operator
+        /// @param other Other iterator
+        bool operator>=(const ConstIterator& other) const
+        {
+            return Base::operator>=(other);
+        }
+
+        /// @brief Iterator dereference operator
+        Reference operator*()
+        {
+            return Base::operator*();
+        }
+
+        /// @brief Const version of operator*
+        ConstReference operator*() const
+        {
+            return Base::operator*();
+        }
+
+        /// @brief Iterator dereference operator
+        Pointer operator->()
+        {
+            return Base::operator->();
+        }
+
+        /// @brief Const version of operator->
+        ConstPointer operator->() const
+        {
+            return Base::operator->();
+        }
+    };
 
     /// @brief Same as ConstIterator
     typedef ConstIterator const_iterator;
 
-    /// @brief Iterator class
-    class Iterator;
+    /// @brief Iterator for the elements of StaticQueue.
+    /// @details May be used to iterate over all the elements without worrying
+    ///          about linearisation of the queue.
+    /// @headerfile embxx/container/StaticQueue.h
+    class Iterator : public StaticQueue<T, TSize>::Base::Iterator
+    {
+        typedef typename StaticQueue<T, TSize>::Base::Iterator Base;
+    public:
+
+        /// @brief Type of iterator category
+        typedef typename Base::IteratorCategory IteratorCategory;
+
+        /// @brief Same as IteratorCategory
+        typedef IteratorCategory iterator_category;
+
+        /// @brief Type of the value referenced by the iterator
+        typedef typename Base::ValueType ValueType;
+
+        /// @brief Same as ValueType
+        typedef ValueType value_type;
+
+        /// @brief Type of the difference between two iterators
+        typedef typename Base::DifferenceType DifferenceType;
+
+        /// @brief Same as DifferenceType
+        typedef DifferenceType difference_type;
+
+        /// @brief Type of the pointer to the value referenced by the iterator
+        typedef typename Base::Pointer Pointer;
+
+        /// @brief Same as Pointer
+        typedef Pointer pointer;
+
+        /// @brief Const pointer type
+        typedef typename Base::ConstPointer ConstPointer;
+
+        /// @brief Type of the reference to the value referenced by the iterator
+        typedef typename Base::Reference Reference;
+
+        /// @brief Same as Reference
+        typedef Reference reference;
+
+        /// @brief Const reference type
+        typedef typename Base::ConstReference ConstReference;
+
+        /// @brief Queue type
+        typedef StaticQueue<T, TSize> QueueType;
+
+        /// @brief Linearised iterator
+        typedef typename QueueType::LinearisedIterator LinearisedIterator;
+
+        /// @brief Const linearised iterator
+        typedef typename QueueType::ConstLinearisedIterator ConstLinearisedIterator;
+
+        /// @brief Constructor
+        /// @param queue Reference to queue
+        /// @param iterator Low level array iterator
+        Iterator(QueueType& queue, LinearisedIterator iterator)
+                : Base(queue, iterator)
+        {
+        }
+
+        /// @brief Copy constructor is default.
+        Iterator(const Iterator&) = default;
+
+        /// @brief Copy assignment operator.
+        /// @param other Other iterator
+        /// @pre Other iterator must be iterator of the same queue.
+        Iterator& operator=(const Iterator& other)
+        {
+            return static_cast<Iterator&>(Base::operator=(other));
+        }
+
+        /// @brief Pre increment operator.
+        Iterator& operator++()
+        {
+            return static_cast<Iterator&>(Base::operator++());
+        }
+
+        /// @brief Post increment operator.
+        Iterator operator++(int dummyParam)
+        {
+            auto tmp = Base::operator++(dummyParam);
+            return *(static_cast<Iterator*>(&tmp));
+        }
+
+        /// @brief Pre decrement operator.
+        Iterator& operator--()
+        {
+            return static_cast<Iterator&>(Base::operator--());
+        }
+
+        /// @brief Post-decrement operator.
+        Iterator operator--(int dummyParam)
+        {
+            auto tmp = Base::operator--(dummyParam);
+            return *(static_cast<Iterator*>(&tmp));
+        }
+
+        /// @brief Operator of adding constant value to the iterator
+        /// @param value Value to be added
+        Iterator& operator+=(DifferenceType value)
+        {
+            return static_cast<Iterator&>(Base::operator+=(value));
+        }
+
+        /// @brief Operator of substructing constant value from the iterator
+        /// @param value Value to be substructed
+        Iterator& operator-=(DifferenceType value)
+        {
+            return static_cast<Iterator&>(Base::operator-=(value));
+        }
+
+        /// @brief Operator +
+        /// @details Creates new iterator object by adding constant to
+        ///          current operator without changing it.
+        /// @param value Value to be added
+        Iterator operator+(DifferenceType value) const
+        {
+            auto tmp = Base::operator+(value);
+            return *(static_cast<Iterator*>(&tmp));
+        }
+
+        /// @brief Operator -
+        /// @details Creates new iterator object by substructing constant from
+        ///          current operator without changing it.
+        /// @param value Value to be substructed
+        Iterator operator-(DifferenceType value) const
+        {
+            auto tmp = Base::operator-(value);
+            return *(static_cast<Iterator*>(&tmp));
+        }
+
+        /// @brief Computes the distance between two iterators
+        /// @param other Other iterator
+        /// @pre other iterator must be of the same queue.
+        DifferenceType operator-(const Iterator& other) const
+        {
+            return Base::operator-(other);
+        }
+
+        /// @brief Iterator comparison operator
+        /// @param other Other iterator
+        bool operator==(const Iterator& other) const
+        {
+            return Base::operator==(other);
+        }
+
+        /// @brief Iterator comparison operator
+        /// @param other Other iterator
+        bool operator!=(const Iterator& other) const
+        {
+            return Base::operator!=(other);
+        }
+
+        /// @brief Iterator comparison operator
+        /// @param other Other iterator
+        bool operator<(const Iterator& other) const
+        {
+            return Base::operator<(other);
+        }
+
+        /// @brief Iterator comparison operator
+        /// @param other Other iterator
+        bool operator<=(const Iterator& other) const
+        {
+            return Base::operator<=(other);
+        }
+
+        /// @brief Iterator comparison operator
+        /// @param other Other iterator
+        bool operator>(const Iterator& other) const
+        {
+            return Base::operator>(other);
+        }
+
+        /// @brief Iterator comparison operator
+        /// @param other Other iterator
+        bool operator>=(const Iterator& other) const
+        {
+            return Base::operator>=(other);
+        }
+
+        /// @brief Iterator dereference operator
+        Reference operator*()
+        {
+            return Base::operator*();
+        }
+
+        /// @brief Const version of operator*
+        ConstReference operator*() const
+        {
+            return Base::operator*();
+        }
+
+        /// @brief Iterator dereference operator
+        Pointer operator->()
+        {
+            return Base::operator->();
+        }
+
+        /// @brief Const version of operator->
+        ConstPointer operator->() const
+        {
+            return Base::operator->();
+        }
+
+        operator ConstIterator() const
+        {
+            auto iter = static_cast<ConstLinearisedIterator>(Base::getIterator());
+            const auto& queue = static_cast<QueueType&>(Base::getQueue());
+            return ConstIterator(queue, iter);
+        }
+    };
 
     /// @brief Same as Iterator
     typedef Iterator iterator;
@@ -2771,428 +3170,6 @@ public:
 private:
     typedef std::array<StorageType, TSize> ArrayType;
     ArrayType array_;
-};
-
-/// @brief Const iterator for the elements of StaticQueue.
-/// @details May be used to iterate over all the elements without worrying
-///          about linearisation of the queue.
-/// @headerfile embxx/container/StaticQueue.h
-template <typename T, std::size_t TSize>
-class StaticQueue<T, TSize>::ConstIterator : public StaticQueue<T, TSize>::Base::ConstIterator
-{
-    typedef typename StaticQueue<T, TSize>::Base::ConstIterator Base;
-public:
-
-    /// @brief Type of iterator category
-    typedef typename Base::IteratorCategory IteratorCategory;
-
-    /// @brief Same as IteratorCategory
-    typedef IteratorCategory iterator_category;
-
-    /// @brief Type of the value referenced by the iterator
-    typedef typename Base::ValueType ValueType;
-
-    /// @brief Same as ValueType
-    typedef ValueType value_type;
-
-    /// @brief Type of the difference between two iterators
-    typedef typename Base::DifferenceType DifferenceType;
-
-    /// @brief Same as DifferenceType
-    typedef DifferenceType difference_type;
-
-    /// @brief Type of the pointer to the value referenced by the iterator
-    typedef typename Base::Pointer Pointer;
-
-    /// @brief Same as Pointer
-    typedef Pointer pointer;
-
-    /// @brief Const pointer type
-    typedef typename Base::ConstPointer ConstPointer;
-
-    /// @brief Type of the reference to the value referenced by the iterator
-    typedef typename Base::Reference Reference;
-
-    /// @brief Same as Reference
-    typedef Reference reference;
-
-    /// @brief Const reference type
-    typedef typename Base::ConstReference ConstReference;
-
-    /// @brief Queue type
-    typedef StaticQueue<T, TSize> QueueType;
-
-    /// @brief Const linearised iterator
-    typedef typename QueueType::ConstLinearisedIterator ConstLinearisedIterator;
-
-    /// @brief Constructor
-    /// @param queue Reference to queue
-    /// @param iterator Low level array iterator
-    ConstIterator(const QueueType& queue, ConstLinearisedIterator iterator)
-        : Base(queue, iterator)
-    {
-    }
-
-    /// @brief Copy constructor is default.
-    ConstIterator(const ConstIterator&) = default;
-
-    /// @brief Copy assignment operator.
-    /// @param other Other iterator
-    /// @pre Other iterator must be iterator of the same queue.
-    ConstIterator& operator=(const ConstIterator& other)
-    {
-        return static_cast<ConstIterator&>(Base::operator=(other));
-    }
-
-    /// @brief Pre increment operator.
-    ConstIterator& operator++()
-    {
-        return static_cast<ConstIterator&>(Base::operator++());
-    }
-
-    /// @brief Post increment operator.
-    ConstIterator operator++(int dummyParam)
-    {
-        auto tmp = Base::operator++(dummyParam);
-        return *(static_cast<ConstIterator*>(&tmp));
-    }
-
-    /// @brief Pre decrement operator.
-    ConstIterator& operator--()
-    {
-        return static_cast<ConstIterator&>(Base::operator--());
-    }
-
-    /// @brief Post-decrement operator.
-    ConstIterator operator--(int dummyParam)
-    {
-        auto tmp = Base::operator--(dummyParam);
-        return *(static_cast<ConstIterator*>(&tmp));
-    }
-
-    /// @brief Operator of adding constant value to the iterator
-    /// @param value Value to be added
-    ConstIterator& operator+=(DifferenceType value)
-    {
-        return static_cast<ConstIterator&>(Base::operator+=(value));
-    }
-
-    /// @brief Operator of substructing constant value from the iterator
-    /// @param value Value to be substructed
-    ConstIterator& operator-=(DifferenceType value)
-    {
-        return static_cast<ConstIterator&>(Base::operator-=(value));
-    }
-
-    /// @brief Operator +
-    /// @details Creates new iterator object by adding constant to
-    ///          current operator without changing it.
-    /// @param value Value to be added
-    ConstIterator operator+(DifferenceType value) const
-    {
-        auto tmp = Base::operator+(value);
-        return *(static_cast<ConstIterator*>(&tmp));
-    }
-
-    /// @brief Operator -
-    /// @details Creates new iterator object by substructing constant from
-    ///          current operator without changing it.
-    /// @param value Value to be substructed
-    ConstIterator operator-(DifferenceType value) const
-    {
-        auto tmp = Base::operator-(value);
-        return *(static_cast<ConstIterator*>(&tmp));
-    }
-
-    /// @brief Computes the distance between two iterators
-    /// @param other Other iterator
-    /// @pre other iterator must be of the same queue.
-    DifferenceType operator-(const ConstIterator& other) const
-    {
-        return Base::operator-(other);
-    }
-
-    /// @brief Iterator comparison operator
-    /// @param other Other iterator
-    bool operator==(const ConstIterator& other) const
-    {
-        return Base::operator==(other);
-    }
-
-    /// @brief Iterator comparison operator
-    /// @param other Other iterator
-    bool operator!=(const ConstIterator& other) const
-    {
-        return Base::operator!=(other);
-    }
-
-    /// @brief Iterator comparison operator
-    /// @param other Other iterator
-    bool operator<(const ConstIterator& other) const
-    {
-        return Base::operator<(other);
-    }
-
-    /// @brief Iterator comparison operator
-    /// @param other Other iterator
-    bool operator<=(const ConstIterator& other) const
-    {
-        return Base::operator<=(other);
-    }
-
-    /// @brief Iterator comparison operator
-    /// @param other Other iterator
-    bool operator>(const ConstIterator& other) const
-    {
-        return Base::operator>(other);
-    }
-
-    /// @brief Iterator comparison operator
-    /// @param other Other iterator
-    bool operator>=(const ConstIterator& other) const
-    {
-        return Base::operator>=(other);
-    }
-
-    /// @brief Iterator dereference operator
-    Reference operator*()
-    {
-        return Base::operator*();
-    }
-
-    /// @brief Const version of operator*
-    ConstReference operator*() const
-    {
-        return Base::operator*();
-    }
-
-    /// @brief Iterator dereference operator
-    Pointer operator->()
-    {
-        return Base::operator->();
-    }
-
-    /// @brief Const version of operator->
-    ConstPointer operator->() const
-    {
-        return Base::operator->();
-    }
-};
-
-/// @brief Iterator for the elements of StaticQueue.
-/// @details May be used to iterate over all the elements without worrying
-///          about linearisation of the queue.
-/// @headerfile embxx/container/StaticQueue.h
-template <typename T, std::size_t TSize>
-class StaticQueue<T, TSize>::Iterator : public StaticQueue<T, TSize>::Base::Iterator
-{
-    typedef typename StaticQueue<T, TSize>::Base::Iterator Base;
-public:
-
-    /// @brief Type of iterator category
-    typedef typename Base::IteratorCategory IteratorCategory;
-
-    /// @brief Same as IteratorCategory
-    typedef IteratorCategory iterator_category;
-
-    /// @brief Type of the value referenced by the iterator
-    typedef typename Base::ValueType ValueType;
-
-    /// @brief Same as ValueType
-    typedef ValueType value_type;
-
-    /// @brief Type of the difference between two iterators
-    typedef typename Base::DifferenceType DifferenceType;
-
-    /// @brief Same as DifferenceType
-    typedef DifferenceType difference_type;
-
-    /// @brief Type of the pointer to the value referenced by the iterator
-    typedef typename Base::Pointer Pointer;
-
-    /// @brief Same as Pointer
-    typedef Pointer pointer;
-
-    /// @brief Const pointer type
-    typedef typename Base::ConstPointer ConstPointer;
-
-    /// @brief Type of the reference to the value referenced by the iterator
-    typedef typename Base::Reference Reference;
-
-    /// @brief Same as Reference
-    typedef Reference reference;
-
-    /// @brief Const reference type
-    typedef typename Base::ConstReference ConstReference;
-
-    /// @brief Queue type
-    typedef StaticQueue<T, TSize> QueueType;
-
-    /// @brief Linearised iterator
-    typedef typename QueueType::LinearisedIterator LinearisedIterator;
-
-    /// @brief Const linearised iterator
-    typedef typename QueueType::ConstLinearisedIterator ConstLinearisedIterator;
-
-    /// @brief Constructor
-    /// @param queue Reference to queue
-    /// @param iterator Low level array iterator
-    Iterator(QueueType& queue, LinearisedIterator iterator)
-        : Base(queue, iterator)
-    {
-    }
-
-    /// @brief Copy constructor is default.
-    Iterator(const Iterator&) = default;
-
-    /// @brief Copy assignment operator.
-    /// @param other Other iterator
-    /// @pre Other iterator must be iterator of the same queue.
-    Iterator& operator=(const Iterator& other)
-    {
-        return static_cast<Iterator&>(Base::operator=(other));
-    }
-
-    /// @brief Pre increment operator.
-    Iterator& operator++()
-    {
-        return static_cast<Iterator&>(Base::operator++());
-    }
-
-    /// @brief Post increment operator.
-    Iterator operator++(int dummyParam)
-    {
-        auto tmp = Base::operator++(dummyParam);
-        return *(static_cast<Iterator*>(&tmp));
-    }
-
-    /// @brief Pre decrement operator.
-    Iterator& operator--()
-    {
-        return static_cast<Iterator&>(Base::operator--());
-    }
-
-    /// @brief Post-decrement operator.
-    Iterator operator--(int dummyParam)
-    {
-        auto tmp = Base::operator--(dummyParam);
-        return *(static_cast<Iterator*>(&tmp));
-    }
-
-    /// @brief Operator of adding constant value to the iterator
-    /// @param value Value to be added
-    Iterator& operator+=(DifferenceType value)
-    {
-        return static_cast<Iterator&>(Base::operator+=(value));
-    }
-
-    /// @brief Operator of substructing constant value from the iterator
-    /// @param value Value to be substructed
-    Iterator& operator-=(DifferenceType value)
-    {
-        return static_cast<Iterator&>(Base::operator-=(value));
-    }
-
-    /// @brief Operator +
-    /// @details Creates new iterator object by adding constant to
-    ///          current operator without changing it.
-    /// @param value Value to be added
-    Iterator operator+(DifferenceType value) const
-    {
-        auto tmp = Base::operator+(value);
-        return *(static_cast<Iterator*>(&tmp));
-    }
-
-    /// @brief Operator -
-    /// @details Creates new iterator object by substructing constant from
-    ///          current operator without changing it.
-    /// @param value Value to be substructed
-    Iterator operator-(DifferenceType value) const
-    {
-        auto tmp = Base::operator-(value);
-        return *(static_cast<Iterator*>(&tmp));
-    }
-
-    /// @brief Computes the distance between two iterators
-    /// @param other Other iterator
-    /// @pre other iterator must be of the same queue.
-    DifferenceType operator-(const Iterator& other) const
-    {
-        return Base::operator-(other);
-    }
-
-    /// @brief Iterator comparison operator
-    /// @param other Other iterator
-    bool operator==(const Iterator& other) const
-    {
-        return Base::operator==(other);
-    }
-
-    /// @brief Iterator comparison operator
-    /// @param other Other iterator
-    bool operator!=(const Iterator& other) const
-    {
-        return Base::operator!=(other);
-    }
-
-    /// @brief Iterator comparison operator
-    /// @param other Other iterator
-    bool operator<(const Iterator& other) const
-    {
-        return Base::operator<(other);
-    }
-
-    /// @brief Iterator comparison operator
-    /// @param other Other iterator
-    bool operator<=(const Iterator& other) const
-    {
-        return Base::operator<=(other);
-    }
-
-    /// @brief Iterator comparison operator
-    /// @param other Other iterator
-    bool operator>(const Iterator& other) const
-    {
-        return Base::operator>(other);
-    }
-
-    /// @brief Iterator comparison operator
-    /// @param other Other iterator
-    bool operator>=(const Iterator& other) const
-    {
-        return Base::operator>=(other);
-    }
-
-    /// @brief Iterator dereference operator
-    Reference operator*()
-    {
-        return Base::operator*();
-    }
-
-    /// @brief Const version of operator*
-    ConstReference operator*() const
-    {
-        return Base::operator*();
-    }
-
-    /// @brief Iterator dereference operator
-    Pointer operator->()
-    {
-        return Base::operator->();
-    }
-
-    /// @brief Const version of operator->
-    ConstPointer operator->() const
-    {
-        return Base::operator->();
-    }
-
-    operator ConstIterator() const
-    {
-        auto iter = static_cast<ConstLinearisedIterator>(Base::getIterator());
-        const auto& queue = static_cast<QueueType&>(Base::getQueue());
-        return ConstIterator(queue, iter);
-    }
 };
 
 /// @}
