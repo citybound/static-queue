@@ -42,7 +42,7 @@
 #include <algorithm>
 #include <cassert>
 
-#include "embxx/util/SizeToType.h"
+#include "SizeToType.h"
 
 namespace embxx
 {
