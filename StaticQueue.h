@@ -2398,6 +2398,23 @@ public:
         Base::assignElements(std::move(queue));
     }
 
+    StaticQueue(std::initializer_list<T> list)
+        : Base(&array_[0], TSize)
+    {
+        for (auto&& item : list) {
+            pushBack(std::move(item));
+        }
+    }
+
+    template<typename Iterator>
+    StaticQueue(Iterator start, Iterator end)
+            : Base(&array_[0], TSize)
+    {
+        for (;start != end; ++start) {
+            pushBack(*start);
+        }
+    }
+
     /// @brief Destructor
     /// @details The queue is cleared - the destructors of all the elements
     ///          in the queue are called
