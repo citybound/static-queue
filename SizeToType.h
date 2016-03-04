@@ -33,10 +33,7 @@
 #include <array>
 #include <cstdint>
 
-namespace embxx
-{
-
-namespace util
+namespace squeue
 {
 
 namespace details
@@ -156,6 +153,4 @@ struct SizeToType<TSize, true>
 
 /// @}
 
-}  // namespace util
-
-}  // namespace embxx
+}  // namespace squeue

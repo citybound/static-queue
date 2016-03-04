@@ -44,10 +44,7 @@
 
 #include "SizeToType.h"
 
-namespace embxx
-{
-
-namespace container
+namespace squeue
 {
 
 namespace details
@@ -1825,9 +1822,9 @@ protected:
 };
 
 template <typename T>
-class StaticQueueBaseOptimised<T*> : public CastWrapperQueueBase<T*, typename embxx::util::SizeToType<sizeof(T*)>::Type>
+class StaticQueueBaseOptimised<T*> : public CastWrapperQueueBase<T*, typename SizeToType<sizeof(T*)>::Type>
 {
-    typedef CastWrapperQueueBase<T*, typename embxx::util::SizeToType<sizeof(T*)>::Type> Base;
+    typedef CastWrapperQueueBase<T*, typename SizeToType<sizeof(T*)>::Type> Base;
 protected:
 
     typedef typename Base::StorageTypePtr StorageTypePtr;
@@ -3200,6 +3197,4 @@ public:
 
 /// @}
 
-}  // namespace container
-
-}  // namespace embxx
+}  // namespace squeue
