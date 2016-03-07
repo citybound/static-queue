@@ -29,7 +29,8 @@
 /// This file contains the definition and implementation of the static queue,
 /// which also can be used as circular buffer.
 
-#pragma once
+#ifndef SQUEUE_STATICQUEUE_H
+#define SQUEUE_STATICQUEUE_H
 
 #include <cstdint>
 #include <cstddef>
@@ -3192,3 +3193,5 @@ private:
 /// @}
 
 }  // namespace squeue
+
+#endif //SQUEUE_STATICQUEUE_H

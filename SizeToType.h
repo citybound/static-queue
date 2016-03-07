@@ -28,7 +28,8 @@
 /// @file embxx/util/SizeToType.h
 /// Contains specialisation of SizeToType class for several sizes.
 
-#pragma once
+#ifndef SQUEUE_SIZETOTYPE_H
+#define SQUEUE_SIZETOTYPE_H
 
 #include <array>
 #include <cstdint>
@@ -154,3 +155,5 @@ struct SizeToType<TSize, true>
 /// @}
 
 }  // namespace squeue
+
+#endif //SQUEUE_SIZETOTYPE_H
