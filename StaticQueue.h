@@ -2330,6 +2330,8 @@ public:
     /// @brief Same as Iterator
     typedef Iterator iterator;
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wuninitialized"
     // Member functions
     /// @brief Default constructor.
     /// @details Creates empty queue.
@@ -2415,6 +2417,7 @@ public:
             pushBack(*start);
         }
     }
+#pragma clang diagnostic pop
 
     /// @brief Destructor
     /// @details The queue is cleared - the destructors of all the elements
